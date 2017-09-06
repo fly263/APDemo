@@ -7,6 +7,4 @@ PS：布局文件使用了ConstraintLayout，如果没有安装，需要在Andro
 # Demo UI
 ![Demo UI](captures/AppUI.png)
 # System UI(From MIUI 9)
-![Demo UI](captures/SystemUI1.png)
-
-![Demo UI](captures/SystemUI2.png)
+![SystemUI1](captures/SystemUI1.png)&nbsp;&nbsp;![SystemUI2](captures/SystemUI2.png)
