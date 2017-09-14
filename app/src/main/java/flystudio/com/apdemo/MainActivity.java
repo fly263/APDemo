@@ -32,25 +32,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         tvInfo = (TextView) findViewById(R.id.tvInfo);
-        getWiFiAPConfig();
+        getWifiAPConfig();
     }
 
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.btnAP:
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (!Settings.System.canWrite(this)) {
-                        Toast.makeText(this, "打开热点需要启用“修改系统设置”权限，请手动开启", Toast.LENGTH_SHORT).show();
-
-                        //清单文件中需要android.permission.WRITE_SETTINGS，否则打开的设置页面开关是灰色的
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + this.getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } else {
-                        setWifiApEnabled(true);
-                    }
-                } else {
+                if (isHasPermissions()) {
                     setWifiApEnabled(true);
                 }
                 break;
@@ -58,13 +46,35 @@ public class MainActivity extends AppCompatActivity {
                 openAPUI();
                 break;
             case R.id.btnReadSetting:
-                getWiFiAPConfig();
+                getWifiAPConfig();
                 break;
             case R.id.btnSwitch:
-                isOpen = !isOpen;
-                switchWifiApEnabled(isOpen);
+                if (isHasPermissions()) {
+                    isOpen = !isOpen;
+                    switchWifiApEnabled(isOpen);
+                }
                 break;
         }
+    }
+
+    private boolean isHasPermissions() {
+        boolean result = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.System.canWrite(this)) {
+                Toast.makeText(this, "打开热点需要启用“修改系统设置”权限，请手动开启", Toast.LENGTH_SHORT).show();
+
+                //清单文件中需要android.permission.WRITE_SETTINGS，否则打开的设置页面开关是灰色的
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                intent.setData(Uri.parse("package:" + this.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } else {
+                result = true;
+            }
+        } else {
+            result = true;
+        }
+        return result;
     }
 
     /**
@@ -76,6 +86,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean setWifiApEnabled(boolean enabled) {
         boolean result = false;
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wifiManager == null) {
+            return false;
+        }
         if (enabled) {
             //wifi和热点不能同时打开，所以打开热点的时候需要关闭wifi
             if (wifiManager.isWifiEnabled()) {
@@ -127,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
         boolean result = false;
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (wifiManager == null) {
-            return result;
+            return false;
         }
         if (enabled) {
             //wifi和热点不能同时打开，所以打开热点的时候需要关闭wifi
@@ -175,6 +188,9 @@ public class MainActivity extends AppCompatActivity {
         boolean isOpen = false;
         try {
             WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager == null) {
+                return false;
+            }
             Method method = wifiManager.getClass().getMethod("isWifiApEnabled");
             isOpen = (boolean) method.invoke(wifiManager);
         } catch (NoSuchMethodException e) {
@@ -190,9 +206,12 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 读取热点配置信息
      */
-    private void getWiFiAPConfig() {
+    private void getWifiAPConfig() {
         try {
             WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager == null) {
+                return;
+            }
             Method method = wifiManager.getClass().getMethod("getWifiApConfiguration");
             WifiConfiguration apConfig = (WifiConfiguration) method.invoke(wifiManager);
             if (apConfig == null) {
