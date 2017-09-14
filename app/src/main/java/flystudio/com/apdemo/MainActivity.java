@@ -8,24 +8,31 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Properties;
+import java.util.Arrays;
+import java.util.Locale;
 
+/**
+ * 本类仅为测试使用，为了方便copy，所以一些变量没有声明为全局的，如wifiManager
+ */
 public class MainActivity extends AppCompatActivity {
+    private TextView tvInfo;
+    private boolean isOpen = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        tvInfo = (TextView) findViewById(R.id.tvInfo);
+        getWiFiAPConfig();
     }
 
     public void onClick(View v) {
@@ -50,11 +57,18 @@ public class MainActivity extends AppCompatActivity {
             case R.id.btnManualAP:
                 openAPUI();
                 break;
+            case R.id.btnReadSetting:
+                getWiFiAPConfig();
+                break;
+            case R.id.btnSwitch:
+                isOpen = !isOpen;
+                switchWifiApEnabled(isOpen);
+                break;
         }
     }
 
     /**
-     * wifi热点开关
+     * 自定义wifi热点
      *
      * @param enabled 开启or关闭
      * @return
@@ -79,7 +93,15 @@ public class MainActivity extends AppCompatActivity {
             //指定安全性为WPA_PSK，在不支持WPA_PSK的手机上看不到密码
             //apConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
             //指定安全性为WPA2_PSK，（官方值为4，小米为6，如果指定为4，小米会变为无密码热点）
-            apConfig.allowedKeyManagement.set(isMIUI() ? 6 : 4);
+            int indexOfWPA2_PSK = 4;
+            //从WifiConfiguration.KeyMgmt数组中查找WPA2_PSK的值
+            for (int i = 0; i < WifiConfiguration.KeyMgmt.strings.length; i++) {
+                if (WifiConfiguration.KeyMgmt.strings[i].equals("WPA2_PSK")) {
+                    indexOfWPA2_PSK = i;
+                    break;
+                }
+            }
+            apConfig.allowedKeyManagement.set(indexOfWPA2_PSK);
             //通过反射调用设置热点
             Method method = wifiManager.getClass().getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
             //返回热点打开状态
@@ -96,26 +118,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 判断是否为MIUI系统，参考http://blog.csdn.net/xx326664162/article/details/52438706
+     * 切换状态
      *
+     * @param enabled
      * @return
      */
-    public static boolean isMIUI() {
-        try {
-            String KEY_MIUI_VERSION_CODE = "ro.miui.ui.version.code";
-            String KEY_MIUI_VERSION_NAME = "ro.miui.ui.version.name";
-            String KEY_MIUI_INTERNAL_STORAGE = "ro.miui.internal.storage";
-            Properties prop = new Properties();
-            prop.load(new FileInputStream(new File(Environment.getRootDirectory(), "build.prop")));
-
-            return prop.getProperty(KEY_MIUI_VERSION_CODE, null) != null
-                    || prop.getProperty(KEY_MIUI_VERSION_NAME, null) != null
-                    || prop.getProperty(KEY_MIUI_INTERNAL_STORAGE, null) != null;
-        } catch (final IOException e) {
-            return false;
+    private boolean switchWifiApEnabled(boolean enabled) {
+        boolean result = false;
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wifiManager == null) {
+            return result;
         }
-    }
+        if (enabled) {
+            //wifi和热点不能同时打开，所以打开热点的时候需要关闭wifi
+            if (wifiManager.isWifiEnabled()) {
+                wifiManager.setWifiEnabled(false);
+            }
+        }
+        try {
+            Method method = wifiManager.getClass().getMethod("getWifiApConfiguration");
+            //读取已有热点配置信息
+            WifiConfiguration apConfig = (WifiConfiguration) method.invoke(wifiManager);
 
+            //通过反射调用设置热点
+            method = wifiManager.getClass().getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
+            //返回热点打开状态
+            result = (Boolean) method.invoke(wifiManager, apConfig, enabled);
+            if (!result) {
+                Toast.makeText(this, "热点创建失败，请手动创建！", Toast.LENGTH_SHORT).show();
+                openAPUI();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "热点创建失败，请手动创建！", Toast.LENGTH_SHORT).show();
+            openAPUI();
+        }
+        return result;
+    }
 
     /**
      * 打开网络共享与热点设置页面
@@ -126,5 +164,61 @@ public class MainActivity extends AppCompatActivity {
         ComponentName comp = new ComponentName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity");
         intent.setComponent(comp);
         startActivity(intent);
+    }
+
+    /**
+     * 判断是否已打开WiFi热点
+     *
+     * @return
+     */
+    private boolean isWifiApEnabled() {
+        boolean isOpen = false;
+        try {
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            Method method = wifiManager.getClass().getMethod("isWifiApEnabled");
+            isOpen = (boolean) method.invoke(wifiManager);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
+        return isOpen;
+    }
+
+    /**
+     * 读取热点配置信息
+     */
+    private void getWiFiAPConfig() {
+        try {
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            Method method = wifiManager.getClass().getMethod("getWifiApConfiguration");
+            WifiConfiguration apConfig = (WifiConfiguration) method.invoke(wifiManager);
+            if (apConfig == null) {
+                tvInfo.setText("未配置热点");
+                return;
+            }
+            tvInfo.setText(String.format("热点名称：%s\r\n", apConfig.SSID));
+            tvInfo.append(String.format("密码：%s\n", apConfig.preSharedKey));
+            //使用apConfig.allowedKeyManagement.toString()返回{0}这样的格式，需要截取中间的具体数值
+            //下面几种写法都可以
+            //int index = Integer.valueOf(apConfig.allowedKeyManagement.toString().substring(1, 2));
+            //int index = Integer.valueOf(String.valueOf(apConfig.allowedKeyManagement.toString().charAt(1)));
+            //int index = Integer.valueOf(apConfig.allowedKeyManagement.toString().charAt(1)+"");
+            int index = apConfig.allowedKeyManagement.toString().charAt(1) - '0';
+            //从KeyMgmt数组中取出对应的文本
+            String apType = WifiConfiguration.KeyMgmt.strings[index];
+            tvInfo.append(String.format(Locale.getDefault(), "WifiConfiguration.KeyMgmt：%s\r\n", Arrays.toString(WifiConfiguration.KeyMgmt.strings)));
+            tvInfo.append(String.format(Locale.getDefault(), "安全性：%d，%s\r\n", index, apType));
+            isOpen = isWifiApEnabled();
+            tvInfo.append("是否已开启：" + isOpen);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
     }
 }
