@@ -1,4 +1,4 @@
-package flystudio.com.apdemo;
+package com.flystudio.apdemo;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;

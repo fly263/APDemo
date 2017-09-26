@@ -1,4 +1,4 @@
-package flystudio.com.apdemo;
+package com.flystudio.apdemo;
 
 import org.junit.Test;
 
