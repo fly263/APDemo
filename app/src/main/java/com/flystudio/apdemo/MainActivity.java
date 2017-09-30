@@ -66,8 +66,17 @@ public class MainActivity extends AppCompatActivity {
                 //清单文件中需要android.permission.WRITE_SETTINGS，否则打开的设置页面开关是灰色的
                 Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
                 intent.setData(Uri.parse("package:" + this.getPackageName()));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
+                //判断系统能否处理，部分ROM无此action，如魅族Flyme
+                if (intent.resolveActivity(getPackageManager()) != null) {
+                    startActivity(intent);
+                } else {
+                    //打开应用详情页
+                    intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + this.getPackageName()));
+                    if (intent.resolveActivity(getPackageManager()) != null) {
+                        startActivity(intent);
+                    }
+                }
             } else {
                 result = true;
             }
