@@ -106,7 +106,9 @@ public class MainActivity extends AppCompatActivity {
         }
         try {
             //热点的配置类
-            WifiConfiguration apConfig = new WifiConfiguration();
+            //WifiConfiguration apConfig = new WifiConfiguration();
+            Method method = wifiManager.getClass().getMethod("getWifiApConfiguration");
+            WifiConfiguration apConfig = (WifiConfiguration) method.invoke(wifiManager);
             //配置热点的名称
             apConfig.SSID = "ap_test";
             //配置热点的密码，至少八位
@@ -124,8 +126,9 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             apConfig.allowedKeyManagement.set(indexOfWPA2_PSK);
+            //TODO Android 8.0已废弃setWifiApEnabled方法，未测试
             //通过反射调用设置热点
-            Method method = wifiManager.getClass().getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
+            method = wifiManager.getClass().getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
             //返回热点打开状态
             result = (Boolean) method.invoke(wifiManager, apConfig, enabled);
             if (!result) {
@@ -182,8 +185,10 @@ public class MainActivity extends AppCompatActivity {
      */
     private void openAPUI() {
         Intent intent = new Intent();
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        //直接打开热点设置页面（不同ROM有差异）
         ComponentName comp = new ComponentName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity");
+        //下面这个是打开网络共享与热点设置页面
+        //ComponentName comp = new ComponentName("com.android.settings", "com.android.settings.TetherSettings");
         intent.setComponent(comp);
         startActivity(intent);
     }
@@ -229,6 +234,7 @@ public class MainActivity extends AppCompatActivity {
             }
             tvInfo.setText(String.format("热点名称：%s\r\n", apConfig.SSID));
             tvInfo.append(String.format("密码：%s\n", apConfig.preSharedKey));
+            // Android 4.2.2异常，返回{}
             //使用apConfig.allowedKeyManagement.toString()返回{0}这样的格式，需要截取中间的具体数值
             //下面几种写法都可以
             //int index = Integer.valueOf(apConfig.allowedKeyManagement.toString().substring(1, 2));
